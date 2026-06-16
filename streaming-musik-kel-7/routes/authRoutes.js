@@ -7,8 +7,7 @@ module.exports = (mysqlConnection) => {
     // FUNGSI 1: REGISTRASI & LOGIN USER (MySQL Asli)
     // =================================================================
 
-    // --- 1A. Registrasi User Baru ---
-    // PERBAIKAN: Mengubah app menjadi router, dan path disingkat menjadi '/register'
+    // --- 1A. Registrasi User Baru (Proteksi Duplikat Username) ---
     router.post('/register', (req, res) => {
         const { username, email, password } = req.body;
 
@@ -16,14 +15,23 @@ module.exports = (mysqlConnection) => {
             return res.status(400).json({ message: "Gagal! Kolom username, email, dan password wajib diisi." });
         }
 
-        const query = `INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())`; //
+        const cekQuery = `SELECT user_id FROM users WHERE username = ?`;
 
-        mysqlConnection.query(query, [username, email, password], (err, results) => {
-            if (err) return res.status(500).json({ message: "Gagal mendaftarkan user", error: err.message });
-            res.status(201).json({ 
-                message: "User berhasil terdaftar di MySQL kelompok 7!",
-                data: { user_id: results.insertId, username, email }
-            }); 
+        mysqlConnection.query(cekQuery, [username], (err, results) => {
+            if (err) return res.status(500).json({ message: "Error validasi username", error: err.message });
+            
+            if (results.length > 0) {
+                return res.status(409).json({ message: `Gagal! Username '${username}' sudah digunakan. Silakan cari nama lain.` });
+            }
+
+            const query = `INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())`;
+            mysqlConnection.query(query, [username, email, password], (err, insertResults) => {
+                if (err) return res.status(500).json({ message: "Gagal mendaftarkan user", error: err.message });
+                res.status(201).json({ 
+                    message: "User berhasil terdaftar di MySQL kelompok 7!",
+                    data: { user_id: insertResults.insertId, username, email }
+                }); 
+            });
         });
     });
 

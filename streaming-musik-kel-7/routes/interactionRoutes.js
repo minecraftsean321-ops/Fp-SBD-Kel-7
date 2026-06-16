@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { PlaybackHistory, UserPreference } = require('../models/mongoModels');
+
+
+const mongoModels = require('../models/mongoModels');
+const PlaybackHistory = mongoModels.PlaybackHistory;
+const UserPreference = mongoModels.UserPreference;
+const Favorite = mongoModels.Favorite;
+const ArtistFollow = mongoModels.ArtistFollow;
 
 // =================================================================
 // FUNGSI 9: RIWAYAT PEMUTARAN LAGU
 // =================================================================
-app.post('/api/playback-history', async (req, res) => {
+router.post('/playback-history', async (req, res) => {
     try {
         // Logika skema: Menggunakan pendekatan 1 dokumen per pemutaran (bukan array embedding besar).
         // Hal ini dirancang karena data log transaksi pemutaran bertambah dengan intensitas tinggi (High-Frequency).
@@ -21,7 +27,7 @@ app.post('/api/playback-history', async (req, res) => {
 // =================================================================
 // FUNGSI 10: REKOMENDASI MUSIK UTAMA
 // =================================================================
-app.get('/api/users/:userId/recommendations', async (req, res) => {
+router.get('/users/:userId/recommendations', async (req, res) => {
     try {
         const user_id = parseInt(req.params.userId);
 
@@ -71,7 +77,7 @@ app.get('/api/users/:userId/recommendations', async (req, res) => {
 // =================================================================
 
 // --- 11A. Menampilkan Profil Preferensi & Statistik ---
-app.get('/api/users/:userId/preferences', async (req, res) => {
+router.get('/users/:userId/preferences', async (req, res) => {
     try {
         const user_id = parseInt(req.params.userId);
         const hasil = await UserPreference.findOne({ user_id: user_id }, { _id: 0 });
@@ -82,18 +88,72 @@ app.get('/api/users/:userId/preferences', async (req, res) => {
     }
 });
 
-// --- 11B. Mengatur / Menyimpan Preferensi Baru ---
-app.post('/api/users/preferences', async (req, res) => {
+// --- 11B. Otomasi Sinkronisasi Preferensi Berdasarkan Perilaku User ---
+router.post('/users/preferences', async (req, res) => {
     try {
-        const { user_id, preferred_genres, preferred_language, settings, listening_stats } = req.body;
-        // Menggunakan findOneAndUpdate dengan opsi { upsert: true }
-        // untuk melakukan operasi insert otomatis jika data belum ada, atau update jika sudah ada.
-        const hasil = await UserPreference.findOneAndUpdate(
+        const user_id = parseInt(req.body.user_id);
+        if (!user_id) return res.status(400).json({ message: "Gagal! user_id wajib diisi." });
+
+        // TAHAP 1: Ambil data genre dari koleksi Favorites milik user
+        const dataFavorit = await Favorite.findOne({ user_id: user_id });
+        let genreDariFavorit = dataFavorit ? dataFavorit.songs.map(s => s.genre) : [];
+
+        // TAHAP 2: Agregasi PlaybackHistory untuk mencari Top Genre & Total Menit Putar user
+        const statistikPutar = await PlaybackHistory.aggregate([
+            { $match: { user_id: user_id } },
+            {
+                $group: {
+                    _id: "$genre",
+                    total_putar: { $sum: 1 },
+                    total_durasi: { $sum: "$listened_duration" },
+                    top_artist: { $first: "$artist_name" } // Mengambil sampel salah satu nama musisi
+                }
+            },
+            { $sort: { total_putar: -1 } } // Urutkan dari genre yang paling sering diputar
+        ]);
+
+        // Ekstraksi data hasil agregasi riwayat pemutaran
+        let genreDariRiwayat = statistikPutar.map(item => item._id);
+        let totalMenitDengar = statistikPutar.reduce((acc, item) => acc + item.total_durasi, 0) / 60;
+        let topGenreNama = statistikPutar.length > 0 ? statistikPutar[0]._id : "Unknown";
+        let topArtistNama = statistikPutar.length > 0 ? statistikPutar[0].top_artist : "Unknown";
+
+        // TAHAP 3: Ambil data musisi yang di-follow user dari ArtistFollow
+        const dataFollow = await ArtistFollow.findOne({ user_id: user_id });
+        let totalMusisiDiFollow = dataFollow ? dataFollow.artists.length : 0;
+
+        // TAHAP 4: Satukan & Hilangkan Duplikasi Genre (Gabungan data Favorit + Riwayat Putar)
+        const semuaGenreGabungan = [...new Set([...genreDariFavorit, ...genreDariRiwayat])];
+
+        // TAHAP 5: UPSERT (Update/Insert) otomatis profil preferensi musik di MongoDB
+        const preferensiTerupdate = await UserPreference.findOneAndUpdate(
             { user_id: user_id },
-            { preferred_genres, preferred_language, settings, listening_stats, updated_at: new Date() },
+            {
+                preferred_genres: semuaGenreGabungan.length > 0 ? semuaGenreGabungan : ["General"],
+                preferred_language: "Indonesian/English",
+                settings: {
+                    audio_quality: "High",
+                    autoplay: true,
+                    explicit_content: false,
+                    discovery_mode: true
+                },
+                listening_stats: {
+                    total_minutes: Math.round(totalMenitDengar),
+                    most_played_genre: topGenreNama,
+                    most_played_artist: topArtistNama,
+                    avg_daily_minutes: Math.round(totalMenitDengar / 7) || 0, // Estimasi rata-rata harian seminggu
+                    peak_hour: new Date().getHours() // Mengambil jam saat tombol sinkronisasi ditekan
+                },
+                updated_at: new Date()
+            },
             { upsert: true, new: true }
         );
-        res.status(200).json({ message: "Preferensi musik berhasil diperbarui!", data: hasil });
+
+        res.status(200).json({ 
+            message: `Sukses! Sistem berhasil memanen data dari Favorites, History, & Follower untuk mengotomatisasi preferensi User ${user_id}.`, 
+            data: preferensiTerupdate 
+        });
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

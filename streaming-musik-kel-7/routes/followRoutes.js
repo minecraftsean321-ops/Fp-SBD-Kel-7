@@ -9,7 +9,7 @@ module.exports = (mysqlConnection) => {
 // =================================================================
 
 // --- 8A. Follow Artist (Versi Perbaikan Tanpa Kolom Genre di Artists MySQL) ---
-app.post('/api/artists/follow', async (req, res) => {
+router.post('/follow', async (req, res) => {
     try {
         const { user_id, artist_id } = req.body;
 
@@ -64,7 +64,7 @@ app.post('/api/artists/follow', async (req, res) => {
 });
 
 // --- 8B. Unfollow Artist (Versi Efisien Murni MongoDB) ---
-app.delete('/api/artists/unfollow', async (req, res) => {
+router.delete('/unfollow', async (req, res) => {
     try {
         const { user_id, artist_id } = req.body;
 

@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 // =================================================================
 // DEFINISI SKEMA & MODEL MONGOOSE (NON-RELATIONAL DATABASE)
 // =================================================================
@@ -72,3 +74,4 @@ const UserPreferencesSchema = new mongoose.Schema({
     updated_at: { type: Date, default: Date.now }
 });
 const UserPreference = mongoose.model('UserPreference', UserPreferencesSchema, 'user_preferences');
+module.exports = { Favorite, ArtistFollow, PlaybackHistory, UserPreference };

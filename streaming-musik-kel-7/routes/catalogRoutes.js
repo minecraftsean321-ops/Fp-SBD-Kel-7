@@ -46,7 +46,7 @@ module.exports = (mysqlConnection) => {
     });
 
 // --- 2B. Menampilkan Semua Artist (Read) ---
-app.get('/api/artists', (req, res) => {
+router.get('/artists', (req, res) => {
     const query = `SELECT * FROM artists`;
     mysqlConnection.query(query, (err, results) => {
         if (err) return res.status(500).json({ message: "Gagal mengambil data artist", error: err.message });
@@ -55,7 +55,7 @@ app.get('/api/artists', (req, res) => {
 });
 
 // --- 2C. Update Data Artist (Update) ---
-app.put('/api/artists/:id', (req, res) => { // [cite: 9]
+router.put('/artists/:id', (req, res) => { // [cite: 9]
     const artist_id = req.params.id;
     const { artist_name, country, debut_year, description } = req.body;
 
@@ -68,7 +68,7 @@ app.put('/api/artists/:id', (req, res) => { // [cite: 9]
 });
 
 // --- 2D. Delete Data Artist (Delete) ---
-app.delete('/api/artists/:id', (req, res) => { // [cite: 11]
+router.delete('/artists/:id', (req, res) => { // [cite: 11]
     const artist_id = req.params.id;
     const query = `DELETE FROM artists WHERE artist_id = ?`; // [cite: 12]
 
@@ -122,7 +122,7 @@ app.delete('/api/artists/:id', (req, res) => { // [cite: 11]
     });
 
 // --- 3B. Menampilkan Semua Lagu (Read) ---
-app.get('/api/songs', (req, res) => {
+router.get('/songs', (req, res) => {
     const query = `SELECT * FROM songs`;
     mysqlConnection.query(query, (err, results) => {
         if (err) return res.status(500).json({ message: "Gagal mengambil data lagu", error: err.message });
@@ -131,7 +131,7 @@ app.get('/api/songs', (req, res) => {
 });
 
 // --- 3C. Update Data Lagu (Update) ---
-app.put('/api/songs/:id', (req, res) => { // [cite: 16]
+router.put('/songs/:id', (req, res) => { // [cite: 16]
     const song_id = req.params.id;
     const { artist_id, title, genre, duration, release_date, audio_url } = req.body;
 
@@ -144,7 +144,7 @@ app.put('/api/songs/:id', (req, res) => { // [cite: 16]
 });
 
 // --- 3D. Delete Data Lagu (Delete) ---
-app.delete('/api/songs/:id', (req, res) => { // [cite: 18]
+router.delete('/songs/:id', (req, res) => { // [cite: 18]
     const song_id = req.params.id;
     const query = `DELETE FROM songs WHERE song_id = ?`; // [cite: 19]
 
@@ -158,7 +158,7 @@ app.delete('/api/songs/:id', (req, res) => { // [cite: 18]
 // =================================================================
 // FUNGSI 4: LIHAT & CARI LAGU (MySQL Asli - Multi Parameter)
 // =================================================================
-app.get('/api/songs/search', (req, res) => {
+router.get('/songs/search', (req, res) => {
     const { judul, genre, artist } = req.query;
     let query = ``;
     let param = [];
